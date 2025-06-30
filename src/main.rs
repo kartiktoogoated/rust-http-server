@@ -1,22 +1,34 @@
-use axum::{Router, routing::post, Json};
-use serde::{Serialize, Deserialize};
-use solana_sdk::pubkey::Pubkey;
-use spl_token::instruction::initialize_mint;
-use ed25519_dalek::{Keypair, Signer};
+use axum::{
+    routing::post,
+    response::IntoResponse,
+    http::StatusCode,
+    Json, Router,
+};
+use serde::{Deserialize, Serialize};
+use solana_sdk::{pubkey::Pubkey, system_instruction};
+use spl_token::instruction::{initialize_mint, mint_to, transfer as spl_transfer};
+use spl_associated_token_account::get_associated_token_address;
+use ed25519_dalek::{Keypair, PublicKey, Signature, Signer, Verifier};
 use rand::rngs::OsRng;
 use bs58;
 use base64;
-use spl_token::instruction::mint_to;
 
+// --------------------
+// Generic API wrapper
+// --------------------
 
 #[derive(Serialize)]
 struct ApiResponse<T> {
     success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    data: Option<T>,
+    data:    Option<T>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<String>,
+    error:   Option<String>,
 }
+
+// --------------------
+// 1. /keypair
+// --------------------
 
 #[derive(Serialize)]
 struct KeypairData {
@@ -24,205 +36,479 @@ struct KeypairData {
     secret: String,
 }
 
-async fn generate_keypair() -> Json<ApiResponse<KeypairData>> {
-    let keypair = Keypair::generate(&mut OsRng);
-    let pubkey_bs58 = bs58::encode(keypair.public).into_string();
-    let secret_bs58 = bs58::encode(keypair.to_bytes()).into_string();
+async fn generate_keypair() -> impl IntoResponse {
+    let kp = Keypair::generate(&mut OsRng);
+    let pubkey = bs58::encode(kp.public).into_string();
+    let secret = bs58::encode(kp.to_bytes()).into_string();
 
-    Json(ApiResponse {
-        success: true,
-        data: Some(KeypairData {
-            pubkey: pubkey_bs58,
-            secret: secret_bs58,
+    (
+        StatusCode::OK,
+        Json(ApiResponse {
+            success: true,
+            data:    Some(KeypairData { pubkey, secret }),
+            error:   None,
         }),
-        error: None,
-    })
+    )
 }
+
+// --------------------
+// 2. /token/create
+// --------------------
 
 #[derive(Deserialize)]
 struct CreateTokenRequest {
     mintAuthority: String,
-    mint: String,
-    decimals: u8,
+    mint:           String,
+    decimals:       u8,
 }
 
 #[derive(Serialize)]
 struct AccountMetaResponse {
-    pubkey: String,
-    is_signer: bool,
+    pubkey:     String,
+    is_signer:  bool,
     is_writable: bool,
 }
 
 #[derive(Serialize)]
 struct CreateTokenResponse {
-    program_id: String,
-    accounts: Vec<AccountMetaResponse>,
+    program_id:       String,
+    accounts:         Vec<AccountMetaResponse>,
     instruction_data: String,
 }
 
-async fn create_token(Json(body): Json<CreateTokenRequest>) -> Json<ApiResponse<CreateTokenResponse>> {
-    // Validate and decode pubkeys
-    let mint_pubkey = match bs58::decode(&body.mint).into_vec() {
-        Ok(bytes) if bytes.len() == 32 => Pubkey::new(&bytes),
-        _ => return Json(ApiResponse { success: false, data: None, error: Some("Invalid mint pubkey".to_string()) }),
+async fn create_token(Json(body): Json<CreateTokenRequest>) -> impl IntoResponse {
+    // decode + validate
+    let mint_pk = match bs58::decode(&body.mint).into_vec() {
+        Ok(b) if b.len()==32 => Pubkey::new(&b),
+        _ => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<CreateTokenResponse> {
+                success:false, data:None,
+                error:Some("Invalid mint pubkey".into()),
+            }),
+        ),
     };
-    let mint_auth_pubkey = match bs58::decode(&body.mintAuthority).into_vec() {
-        Ok(bytes) if bytes.len() == 32 => Pubkey::new(&bytes),
-        _ => return Json(ApiResponse { success: false, data: None, error: Some("Invalid mint authority pubkey".to_string()) }),
+    let auth_pk = match bs58::decode(&body.mintAuthority).into_vec() {
+        Ok(b) if b.len()==32 => Pubkey::new(&b),
+        _ => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<CreateTokenResponse> {
+                success:false, data:None,
+                error:Some("Invalid mint authority pubkey".into()),
+            }),
+        ),
     };
 
-    // The rent sysvar and token program are required by the instruction
-    let rent_sysvar = solana_sdk::sysvar::rent::id();
-    let token_program = spl_token::id();
-
-    // Build the instruction
-    let ix = match initialize_mint(
-        &token_program,
-        &mint_pubkey,
-        &mint_auth_pubkey,
-        None, // freeze authority optional
-        body.decimals,
-    ) {
+    let program_id = spl_token::id();
+    let ix = match initialize_mint(&program_id, &mint_pk, &auth_pk, None, body.decimals) {
         Ok(ix) => ix,
-        Err(e) => return Json(ApiResponse { success: false, data: None, error: Some(format!("Failed to create instruction: {e}")) }),
+        Err(e) => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<CreateTokenResponse> {
+                success:false, data:None,
+                error:Some(format!("Failed to create instruction: {e}")),
+            }),
+        ),
     };
 
-    // Serialize instruction data as base64
-    let instruction_data = base64::encode(&ix.data);
-
-    // Format account metas
-    let accounts: Vec<AccountMetaResponse> = ix.accounts.iter().map(|meta| AccountMetaResponse {
-        pubkey: meta.pubkey.to_string(),
-        is_signer: meta.is_signer,
-        is_writable: meta.is_writable,
+    let accounts = ix.accounts.iter().map(|m| AccountMetaResponse {
+        pubkey: m.pubkey.to_string(),
+        is_signer: m.is_signer,
+        is_writable: m.is_writable,
     }).collect();
 
-    let response = CreateTokenResponse {
+    let resp = CreateTokenResponse {
         program_id: ix.program_id.to_string(),
         accounts,
-        instruction_data,
+        instruction_data: base64::encode(&ix.data),
     };
 
-    Json(ApiResponse { success: true, data: Some(response), error: None })
+    (StatusCode::OK, Json(ApiResponse { success:true, data:Some(resp), error:None }))
 }
+
+// --------------------
+// 3. /token/mint
+// --------------------
 
 #[derive(Deserialize)]
 struct MintTokenRequest {
-    mint: String,
+    mint:        String,
     destination: String,
-    authority: String,
-    amount: u64,
+    authority:   String,
+    amount:      u64,
 }
-
 
 #[derive(Serialize)]
 struct MintTokenResponse {
-    program_id: String,
-    accounts: Vec<AccountMetaResponse>,
+    program_id:       String,
+    accounts:         Vec<AccountMetaResponse>,
     instruction_data: String,
 }
 
-async fn mint_token(Json(body): Json<MintTokenRequest>) -> Json<ApiResponse<MintTokenResponse>> {
-    // Validate and decode pubkeys
-    let mint_pubkey = match bs58::decode(&body.mint).into_vec() {
-        Ok(bytes) if bytes.len() == 32 => Pubkey::new(&bytes),
-        _ => return Json(ApiResponse { success: false, data: None, error: Some("Invalid mint pubkey".to_string()) }),
+async fn mint_token(Json(body): Json<MintTokenRequest>) -> impl IntoResponse {
+    let mint_pk = match bs58::decode(&body.mint).into_vec() {
+        Ok(b) if b.len()==32 => Pubkey::new(&b),
+        _ => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<MintTokenResponse> {
+                success:false, data:None,
+                error:Some("Invalid mint pubkey".into()),
+            }),
+        ),
     };
-    let destination_pubkey = match bs58::decode(&body.destination).into_vec() {
-        Ok(bytes) if bytes.len() == 32 => Pubkey::new(&bytes),
-        _ => return Json(ApiResponse { success: false, data: None, error: Some("Invalid destination pubkey".to_string()) }),
+    let dest_pk = match bs58::decode(&body.destination).into_vec() {
+        Ok(b) if b.len()==32 => Pubkey::new(&b),
+        _ => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<MintTokenResponse> {
+                success:false, data:None,
+                error:Some("Invalid destination pubkey".into()),
+            }),
+        ),
     };
-    let authority_pubkey = match bs58::decode(&body.authority).into_vec() {
-        Ok(bytes) if bytes.len() == 32 => Pubkey::new(&bytes),
-        _ => return Json(ApiResponse { success: false, data: None, error: Some("Invalid authority pubkey".to_string()) }),
+    let auth_pk = match bs58::decode(&body.authority).into_vec() {
+        Ok(b) if b.len()==32 => Pubkey::new(&b),
+        _ => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<MintTokenResponse> {
+                success:false, data:None,
+                error:Some("Invalid authority pubkey".into()),
+            }),
+        ),
     };
 
-    // SPL token program id
-    let token_program = spl_token::id();
-
-    // Build the mint_to instruction
-    let ix = match mint_to(
-        &token_program,
-        &mint_pubkey,
-        &destination_pubkey,
-        &authority_pubkey,
-        &[],
-        body.amount,
-    ) {
+    let program_id = spl_token::id();
+    let ix = match mint_to(&program_id, &mint_pk, &dest_pk, &auth_pk, &[], body.amount) {
         Ok(ix) => ix,
-        Err(e) => return Json(ApiResponse { success: false, data: None, error: Some(format!("Failed to create instruction: {e}")) }),
+        Err(e) => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<MintTokenResponse> {
+                success:false, data:None,
+                error:Some(format!("Failed to create instruction: {e}")),
+            }),
+        ),
     };
 
-    // Format accounts
-    let accounts: Vec<AccountMetaResponse> = ix.accounts.iter().map(|meta| AccountMetaResponse {
-        pubkey: meta.pubkey.to_string(),
-        is_signer: meta.is_signer,
-        is_writable: meta.is_writable,
+    let accounts = ix.accounts.iter().map(|m| AccountMetaResponse {
+        pubkey: m.pubkey.to_string(),
+        is_signer: m.is_signer,
+        is_writable: m.is_writable,
     }).collect();
 
-    // Instruction data as base64
-    let instruction_data = base64::encode(&ix.data);
-
-    let response = MintTokenResponse {
+    let resp = MintTokenResponse {
         program_id: ix.program_id.to_string(),
         accounts,
-        instruction_data,
+        instruction_data: base64::encode(&ix.data),
     };
 
-    Json(ApiResponse { success: true, data: Some(response), error: None })
+    (StatusCode::OK, Json(ApiResponse { success:true, data:Some(resp), error:None }))
 }
+
+// --------------------
+// 4. /message/sign
+// --------------------
 
 #[derive(Deserialize)]
 struct SignMessageRequest {
     message: String,
-    secret: String,
+    secret:  String,
 }
 
 #[derive(Serialize)]
 struct SignMessageResponse {
-    signature: String,
+    signature:  String,
     public_key: String,
-    message: String,
+    message:    String,
 }
 
-async fn sign_message(Json(body): Json<SignMessageRequest>) -> Json<ApiResponse<SignMessageResponse>> {
-    // Validate presence of fields
+async fn sign_message(Json(body): Json<SignMessageRequest>) -> impl IntoResponse {
     if body.message.is_empty() || body.secret.is_empty() {
-        return Json(ApiResponse { success: false, data: None, error: Some("Missing required fields".to_string()) });
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<SignMessageResponse> {
+                success:false, data:None,
+                error:Some("Missing required fields".into()),
+            }),
+        );
     }
 
-    // Decode secret from base58
-    let secret_bytes = match bs58::decode(&body.secret).into_vec() {
-        Ok(bytes) if bytes.len() == 64 => bytes,
-        _ => return Json(ApiResponse { success: false, data: None, error: Some("Invalid secret key".to_string()) }),
+    let sk = match bs58::decode(&body.secret).into_vec() {
+        Ok(b) if b.len()==64 => b,
+        _ => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<SignMessageResponse> {
+                success:false, data:None,
+                error:Some("Invalid secret key".into()),
+            }),
+        ),
     };
 
-    // Parse Keypair from bytes (v1.0 API: to_bytes = secret+public)
-    let keypair = match Keypair::from_bytes(&secret_bytes) {
+    let kp = match Keypair::from_bytes(&sk) {
         Ok(kp) => kp,
-        Err(_) => return Json(ApiResponse { success: false, data: None, error: Some("Invalid secret key".to_string()) }),
+        Err(_) => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<SignMessageResponse> {
+                success:false, data:None,
+                error:Some("Invalid secret key".into()),
+            }),
+        ),
     };
 
-    // Sign the message
-    let signature = keypair.sign(body.message.as_bytes());
-    let signature_base64 = base64::encode(signature.to_bytes());
-    let pubkey_base58 = bs58::encode(keypair.public).into_string();
-
-    let response = SignMessageResponse {
-        signature: signature_base64,
-        public_key: pubkey_base58,
-        message: body.message,
+    let sig = kp.sign(body.message.as_bytes());
+    let resp = SignMessageResponse {
+        signature:  base64::encode(sig.to_bytes()),
+        public_key: bs58::encode(kp.public).into_string(),
+        message:    body.message,
     };
 
-    Json(ApiResponse { success: true, data: Some(response), error: None })
+    (StatusCode::OK, Json(ApiResponse { success:true, data:Some(resp), error:None }))
 }
+
+// --------------------
+// 5. /message/verify
+// --------------------
+
+#[derive(Deserialize)]
+struct VerifyMessageRequest {
+    message:   String,
+    signature: String,
+    pubkey:    String,
+}
+
+#[derive(Serialize)]
+struct VerifyMessageResponse {
+    valid:   bool,
+    message: String,
+    pubkey:  String,
+}
+
+async fn verify_message(Json(body): Json<VerifyMessageRequest>) -> impl IntoResponse {
+    if body.message.is_empty() || body.signature.is_empty() || body.pubkey.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<VerifyMessageResponse> {
+                success:false, data:None,
+                error:Some("Missing required fields".into()),
+            }),
+        );
+    }
+
+    let pkb = match bs58::decode(&body.pubkey).into_vec() {
+        Ok(b) if b.len()==32 => b,
+        _ => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<VerifyMessageResponse> {
+                success:false, data:None,
+                error:Some("Invalid public key".into()),
+            }),
+        ),
+    };
+    let pk = match PublicKey::from_bytes(&pkb) {
+        Ok(pk) => pk,
+        Err(_) => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<VerifyMessageResponse> {
+                success:false, data:None,
+                error:Some("Invalid public key".into()),
+            }),
+        ),
+    };
+
+    let sigb = match base64::decode(&body.signature) {
+        Ok(b) if b.len()==64 => b,
+        _ => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<VerifyMessageResponse> {
+                success:false, data:None,
+                error:Some("Invalid signature".into()),
+            }),
+        ),
+    };
+    let sig = match Signature::from_bytes(&sigb) {
+        Ok(s) => s,
+        Err(_) => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<VerifyMessageResponse> {
+                success:false, data:None,
+                error:Some("Invalid signature".into()),
+            }),
+        ),
+    };
+
+    let valid = pk.verify(body.message.as_bytes(), &sig).is_ok();
+    let resp = VerifyMessageResponse { valid, message: body.message, pubkey: body.pubkey };
+
+    (StatusCode::OK, Json(ApiResponse { success:true, data:Some(resp), error:None }))
+}
+
+// --------------------
+// 6. /send/sol
+// --------------------
+
+#[derive(Deserialize)]
+struct SendSolRequest {
+    from:     String,
+    to:       String,
+    lamports: u64,
+}
+
+#[derive(Serialize)]
+struct SendSolResponse {
+    program_id:       String,
+    accounts:         Vec<String>,
+    instruction_data: String,
+}
+
+async fn send_sol(Json(body): Json<SendSolRequest>) -> impl IntoResponse {
+    let from_pk = match bs58::decode(&body.from).into_vec() {
+        Ok(b) if b.len()==32 => Pubkey::new(&b),
+        _ => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<SendSolResponse> {
+                success:false, data:None,
+                error:Some("Invalid from address".into()),
+            }),
+        ),
+    };
+    let to_pk = match bs58::decode(&body.to).into_vec() {
+        Ok(b) if b.len()==32 => Pubkey::new(&b),
+        _ => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<SendSolResponse> {
+                success:false, data:None,
+                error:Some("Invalid to address".into()),
+            }),
+        ),
+    };
+    if body.lamports == 0 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<SendSolResponse> {
+                success:false, data:None,
+                error:Some("Invalid lamports amount".into()),
+            }),
+        );
+    }
+
+    let ix = system_instruction::transfer(&from_pk, &to_pk, body.lamports);
+    let accounts = ix.accounts.iter().map(|m| m.pubkey.to_string()).collect();
+    let resp = SendSolResponse {
+        program_id: ix.program_id.to_string(),
+        accounts,
+        instruction_data: base64::encode(&ix.data),
+    };
+
+    (StatusCode::OK, Json(ApiResponse { success:true, data:Some(resp), error:None }))
+}
+
+// --------------------
+// 7. /send/token
+// --------------------
+
+#[derive(Deserialize)]
+struct SendTokenRequest {
+    destination: String,
+    mint:        String,
+    owner:       String,
+    amount:      u64,
+}
+
+#[derive(Serialize)]
+struct SendTokenAccount {
+    pubkey:   String,
+    isSigner: bool,
+}
+
+#[derive(Serialize)]
+struct SendTokenResponse {
+    program_id:       String,
+    accounts:         Vec<SendTokenAccount>,
+    instruction_data: String,
+}
+
+async fn send_token(Json(body): Json<SendTokenRequest>) -> impl IntoResponse {
+    let dest_owner = match bs58::decode(&body.destination).into_vec() {
+        Ok(b) if b.len()==32 => Pubkey::new(&b),
+        _ => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<SendTokenResponse> {
+                success:false, data:None,
+                error:Some("Invalid destination address".into()),
+            }),
+        ),
+    };
+    let mint_pk = match bs58::decode(&body.mint).into_vec() {
+        Ok(b) if b.len()==32 => Pubkey::new(&b),
+        _ => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<SendTokenResponse> {
+                success:false, data:None,
+                error:Some("Invalid mint address".into()),
+            }),
+        ),
+    };
+    let owner_pk = match bs58::decode(&body.owner).into_vec() {
+        Ok(b) if b.len()==32 => Pubkey::new(&b),
+        _ => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<SendTokenResponse> {
+                success:false, data:None,
+                error:Some("Invalid owner address".into()),
+            }),
+        ),
+    };
+    if body.amount == 0 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<SendTokenResponse> {
+                success:false, data:None,
+                error:Some("Invalid amount".into()),
+            }),
+        );
+    }
+
+    let source_ata = get_associated_token_address(&owner_pk, &mint_pk);
+    let dest_ata   = get_associated_token_address(&dest_owner, &mint_pk);
+    let program_id = spl_token::id();
+
+    let ix = match spl_transfer(&program_id, &source_ata, &dest_ata, &owner_pk, &[], body.amount) {
+        Ok(ix) => ix,
+        Err(e) => return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<SendTokenResponse> {
+                success:false, data:None,
+                error:Some(format!("Failed to create transfer instruction: {e}")),
+            }),
+        ),
+    };
+
+    let accounts = ix.accounts.iter().map(|m| SendTokenAccount {
+        pubkey:   m.pubkey.to_string(),
+        isSigner: m.is_signer,
+    }).collect();
+
+    let resp = SendTokenResponse {
+        program_id: ix.program_id.to_string(),
+        accounts,
+        instruction_data: base64::encode(&ix.data),
+    };
+
+    (StatusCode::OK, Json(ApiResponse { success:true, data:Some(resp), error:None }))
+}
+
+// --------------------
+// Wiring & main
+// --------------------
 
 fn app() -> Router {
     Router::new()
-        .route("/keypair", post(generate_keypair))
-        .route("/token/create", post(create_token))
-        .route("/token/mint", post(mint_token))
-        .route("/message/sign", post(sign_message))
+        .route("/keypair",        post(generate_keypair))
+        .route("/token/create",   post(create_token))
+        .route("/token/mint",     post(mint_token))
+        .route("/message/sign",   post(sign_message))
+        .route("/message/verify", post(verify_message))
+        .route("/send/sol",       post(send_sol))
+        .route("/send/token",     post(send_token))
 }
 
 #[tokio::main]

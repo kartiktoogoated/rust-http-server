@@ -13,9 +13,7 @@ use rand::rngs::OsRng;
 use bs58;
 use base64;
 
-// --------------------
-// Generic API wrapper
-// --------------------
+// API wrapper
 
 #[derive(Serialize)]
 struct ApiResponse<T> {
@@ -26,9 +24,7 @@ struct ApiResponse<T> {
     error:   Option<String>,
 }
 
-// --------------------
-// 1. /keypair
-// --------------------
+// /keypair
 
 #[derive(Serialize)]
 struct KeypairData {
@@ -51,9 +47,7 @@ async fn generate_keypair() -> impl IntoResponse {
     )
 }
 
-// --------------------
-// 2. /token/create
-// --------------------
+// /token/crate
 
 #[derive(Deserialize)]
 struct CreateTokenRequest {
@@ -126,9 +120,7 @@ async fn create_token(Json(body): Json<CreateTokenRequest>) -> impl IntoResponse
     (StatusCode::OK, Json(ApiResponse { success:true, data:Some(resp), error:None }))
 }
 
-// --------------------
-// 3. /token/mint
-// --------------------
+// /token/mint
 
 #[derive(Deserialize)]
 struct MintTokenRequest {
@@ -204,9 +196,8 @@ async fn mint_token(Json(body): Json<MintTokenRequest>) -> impl IntoResponse {
     (StatusCode::OK, Json(ApiResponse { success:true, data:Some(resp), error:None }))
 }
 
-// --------------------
-// 4. /message/sign
-// --------------------
+
+// /message/sign
 
 #[derive(Deserialize)]
 struct SignMessageRequest {
@@ -264,9 +255,7 @@ async fn sign_message(Json(body): Json<SignMessageRequest>) -> impl IntoResponse
     (StatusCode::OK, Json(ApiResponse { success:true, data:Some(resp), error:None }))
 }
 
-// --------------------
-// 5. /message/verify
-// --------------------
+// /message/verify
 
 #[derive(Deserialize)]
 struct VerifyMessageRequest {
@@ -341,9 +330,7 @@ async fn verify_message(Json(body): Json<VerifyMessageRequest>) -> impl IntoResp
     (StatusCode::OK, Json(ApiResponse { success:true, data:Some(resp), error:None }))
 }
 
-// --------------------
-// 6. /send/sol
-// --------------------
+//  /send/sol
 
 #[derive(Deserialize)]
 struct SendSolRequest {
@@ -401,9 +388,7 @@ async fn send_sol(Json(body): Json<SendSolRequest>) -> impl IntoResponse {
     (StatusCode::OK, Json(ApiResponse { success:true, data:Some(resp), error:None }))
 }
 
-// --------------------
-// 7. /send/token
-// --------------------
+// /send/token
 
 #[derive(Deserialize)]
 struct SendTokenRequest {
@@ -496,9 +481,7 @@ async fn send_token(Json(body): Json<SendTokenRequest>) -> impl IntoResponse {
     (StatusCode::OK, Json(ApiResponse { success:true, data:Some(resp), error:None }))
 }
 
-// --------------------
 // Wiring & main
-// --------------------
 
 fn app() -> Router {
     Router::new()

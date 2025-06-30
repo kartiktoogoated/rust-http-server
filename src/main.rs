@@ -1,7 +1,7 @@
 use axum::{Router, routing::post, Json};
-use serde::{Serialize, Deserialize};
+use serde::Serialize;
 use ed25519_dalek::Keypair;
-use rand_core::OsRng;
+use rand::rngs::OsRng;
 use bs58;
 
 #[derive(Serialize)]

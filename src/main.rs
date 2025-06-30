@@ -401,7 +401,7 @@ struct SendTokenRequest {
 #[derive(Serialize)]
 struct SendTokenAccount {
     pubkey:   String,
-    isSigner: bool,
+    is_signer: bool,
 }
 
 #[derive(Serialize)]
@@ -469,7 +469,7 @@ async fn send_token(Json(body): Json<SendTokenRequest>) -> impl IntoResponse {
 
     let accounts = ix.accounts.iter().map(|m| SendTokenAccount {
         pubkey:   m.pubkey.to_string(),
-        isSigner: m.is_signer,
+        is_signer: m.is_signer,
     }).collect();
 
     let resp = SendTokenResponse {

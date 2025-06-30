@@ -1,84 +1,48 @@
-use axum::{
-    body, extract::{Path, Query}, response::IntoResponse, routing::{get, post}, Json, Router
-};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use tower_http::trace::TraceLayer;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use solana_client::rpc_client::RpcClient;
-use solana_sdk::pubkey::Pubkey;
+use axum::{Router, routing::post, Json};
+use serde::{Serialize, Deserialize};
+use ed25519_dalek::Keypair;
+use rand_core::OsRng;
+use bs58;
 
-#[tokio::main]
-async fn main() {
-    // Log layer
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-
-    // App routes
-    let app = Router::new()
-        .route("/", get(root))
-        .route("/greet/{name}", get(greet))
-        .route("/search", get(search))
-        .route("/login", post(login))
-        .route("/balance/{address}", get(balance))
-        .layer(TraceLayer::new_for_http());
-
-    println!("Server listening on http://localhost:3000");
-
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
-}
-
-async fn root() -> impl IntoResponse {
-    "Rust HTTP Server is live"
-}
-
-async fn greet(Path(name): Path<String>) -> impl IntoResponse {
-    format!("Hello, {name}")
-}
-
-async fn search(Query(params): Query<HashMap<String, String>>) -> impl IntoResponse {
-    let q = params.get("q").unwrap_or(&"none".to_string()).clone();
-    format!("You searched for: {q}")
-}
-
-#[derive(Deserialize)]
-struct LoginRequest {
-    username: String,
-    password: String,
-}
-
-async fn login(Json(body): Json<LoginRequest>) -> impl IntoResponse {
-    if body.username == "admin" && body.password == "admin" {
-        "Login successful" 
-    } else {
-        "Invalid Credentials"
-    }
+#[derive(Serialize)]
+struct ApiResponse<T> {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<T>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
 }
 
 #[derive(Serialize)]
-struct BalanceResponse {
+struct KeypairData {
     pubkey: String,
-    lamports: u64,
+    secret: String,
 }
 
-async fn balance(Path(address): Path<String>) -> impl IntoResponse {
-    let client = RpcClient::new("https://api.mainnet-beta.solana.com".to_string());
-    let pubkey = match address.parse::<Pubkey>() {
-        Ok(pk) => pk,
-        Err(_) => {
-            return Json(BalanceResponse {
-                pubkey: address,
-                lamports: 0,
-            });
-        }
-    };
+async fn generate_keypair() -> Json<ApiResponse<KeypairData>> {
+    let keypair = Keypair::generate(&mut OsRng);
+    let pubkey_bs58 = bs58::encode(keypair.public).into_string();
+    let secret_bs58 = bs58::encode(keypair.to_bytes()).into_string();
 
-    let balance = client.get_balance(&pubkey).unwrap_or(0);
-
-    Json(BalanceResponse {
-        pubkey: pubkey.to_string(),
-        lamports: balance,
+    Json(ApiResponse {
+        success: true,
+        data: Some(KeypairData {
+            pubkey: pubkey_bs58,
+            secret: secret_bs58,
+        }),
+        error: None,
     })
+}
+
+fn app() -> Router {
+    Router::new()
+        .route("/keypair", post(generate_keypair))
+}
+
+#[tokio::main]
+async fn main() {
+    axum::Server::bind(&"0.0.0.0:8080".parse().unwrap())
+        .serve(app().into_make_service())
+        .await
+        .unwrap();
 }

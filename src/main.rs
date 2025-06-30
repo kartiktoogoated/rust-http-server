@@ -19,7 +19,6 @@ use base64;
 #[derive(Serialize)]
 struct ApiResponse<T> {
     success: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<T>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,

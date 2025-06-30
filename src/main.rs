@@ -19,6 +19,7 @@ use base64;
 #[derive(Serialize)]
 struct ApiResponse<T> {
     success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<T>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
@@ -79,8 +80,8 @@ async fn create_token(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<CreateTokenResponse> {
                     success: false,
-                    data: None,
                     error: Some("Missing required fields".into()),
+                    data: None,
                 }),
             )
         }
@@ -90,8 +91,8 @@ async fn create_token(
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<CreateTokenResponse> {
                 success: false,
-                data: None,
                 error: Some("Missing required fields".into()),
+                data: None,
             }),
         );
     }
@@ -102,8 +103,8 @@ async fn create_token(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<CreateTokenResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid mint pubkey".into()),
+                    data: None,
                 }),
             )
         }
@@ -115,8 +116,8 @@ async fn create_token(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<CreateTokenResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid mint authority pubkey".into()),
+                    data: None,
                 }),
             )
         }
@@ -129,8 +130,8 @@ async fn create_token(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<CreateTokenResponse> {
                     success: false,
-                    data: None,
                     error: Some(format!("Failed to create instruction: {e}")),
+                    data: None,
                 }),
             )
         }
@@ -182,8 +183,8 @@ async fn mint_token(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<MintTokenResponse> {
                     success: false,
-                    data: None,
                     error: Some("Missing required fields".into()),
+                    data: None,
                 }),
             )
         }
@@ -193,8 +194,8 @@ async fn mint_token(
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<MintTokenResponse> {
                 success: false,
-                data: None,
                 error: Some("Missing required fields".into()),
+                data: None,
             }),
         );
     }
@@ -203,8 +204,8 @@ async fn mint_token(
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<MintTokenResponse> {
                 success: false,
-                data: None,
                 error: Some("Invalid amount".into()),
+                data: None,
             }),
         );
     }
@@ -215,8 +216,8 @@ async fn mint_token(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<MintTokenResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid mint pubkey".into()),
+                    data: None,
                 }),
             )
         }
@@ -228,8 +229,8 @@ async fn mint_token(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<MintTokenResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid destination pubkey".into()),
+                    data: None,
                 }),
             )
         }
@@ -241,8 +242,8 @@ async fn mint_token(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<MintTokenResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid authority pubkey".into()),
+                    data: None,
                 }),
             )
         }
@@ -255,8 +256,8 @@ async fn mint_token(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<MintTokenResponse> {
                     success: false,
-                    data: None,
                     error: Some(format!("Failed to create instruction: {e}")),
+                    data: None,
                 }),
             )
         }
@@ -306,8 +307,8 @@ async fn sign_message(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<SignMessageResponse> {
                     success: false,
-                    data: None,
                     error: Some("Missing required fields".into()),
+                    data: None,
                 }),
             )
         }
@@ -317,8 +318,8 @@ async fn sign_message(
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<SignMessageResponse> {
                 success: false,
-                data: None,
                 error: Some("Missing required fields".into()),
+                data: None,
             }),
         );
     }
@@ -327,8 +328,8 @@ async fn sign_message(
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<SignMessageResponse> {
                 success: false,
-                data: None,
                 error: Some("Message too long".into()),
+                data: None,
             }),
         );
     }
@@ -339,8 +340,8 @@ async fn sign_message(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<SignMessageResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid secret key".into()),
+                    data: None,
                 }),
             )
         }
@@ -352,8 +353,8 @@ async fn sign_message(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<SignMessageResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid secret key".into()),
+                    data: None,
                 }),
             )
         }
@@ -400,8 +401,8 @@ async fn verify_message(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<VerifyMessageResponse> {
                     success: false,
-                    data: None,
                     error: Some("Missing required fields".into()),
+                    data: None,
                 }),
             )
         }
@@ -411,8 +412,8 @@ async fn verify_message(
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<VerifyMessageResponse> {
                 success: false,
-                data: None,
                 error: Some("Missing required fields".into()),
+                data: None,
             }),
         );
     }
@@ -421,8 +422,8 @@ async fn verify_message(
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<VerifyMessageResponse> {
                 success: false,
-                data: None,
                 error: Some("Message too long".into()),
+                data: None,
             }),
         );
     }
@@ -433,8 +434,8 @@ async fn verify_message(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<VerifyMessageResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid public key".into()),
+                    data: None,
                 }),
             )
         }
@@ -446,8 +447,8 @@ async fn verify_message(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<VerifyMessageResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid public key".into()),
+                    data: None,
                 }),
             )
         }
@@ -459,8 +460,8 @@ async fn verify_message(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<VerifyMessageResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid signature".into()),
+                    data: None,
                 }),
             )
         }
@@ -472,8 +473,8 @@ async fn verify_message(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<VerifyMessageResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid signature".into()),
+                    data: None,
                 }),
             )
         }
@@ -520,8 +521,8 @@ async fn send_sol(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<SendSolResponse> {
                     success: false,
-                    data: None,
                     error: Some("Missing required fields".into()),
+                    data: None,
                 }),
             )
         }
@@ -531,8 +532,8 @@ async fn send_sol(
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<SendSolResponse> {
                 success: false,
-                data: None,
                 error: Some("Missing required fields".into()),
+                data: None,
             }),
         );
     }
@@ -543,8 +544,8 @@ async fn send_sol(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<SendSolResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid from address".into()),
+                    data: None,
                 }),
             )
         }
@@ -556,8 +557,8 @@ async fn send_sol(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<SendSolResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid to address".into()),
+                    data: None,
                 }),
             )
         }
@@ -567,8 +568,8 @@ async fn send_sol(
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<SendSolResponse> {
                 success: false,
-                data: None,
                 error: Some("Invalid lamports amount".into()),
+                data: None,
             }),
         );
     }
@@ -623,8 +624,8 @@ async fn send_token(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<SendTokenResponse> {
                     success: false,
-                    data: None,
                     error: Some("Missing required fields".into()),
+                    data: None,
                 }),
             )
         }
@@ -634,8 +635,8 @@ async fn send_token(
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<SendTokenResponse> {
                 success: false,
-                data: None,
                 error: Some("Missing required fields".into()),
+                data: None,
             }),
         );
     }
@@ -644,8 +645,8 @@ async fn send_token(
             StatusCode::BAD_REQUEST,
             Json(ApiResponse::<SendTokenResponse> {
                 success: false,
-                data: None,
                 error: Some("Invalid amount".into()),
+                data: None,
             }),
         );
     }
@@ -656,8 +657,8 @@ async fn send_token(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<SendTokenResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid destination address".into()),
+                    data: None,
                 }),
             )
         }
@@ -669,8 +670,8 @@ async fn send_token(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<SendTokenResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid mint address".into()),
+                    data: None,
                 }),
             )
         }
@@ -682,8 +683,8 @@ async fn send_token(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<SendTokenResponse> {
                     success: false,
-                    data: None,
                     error: Some("Invalid owner address".into()),
+                    data: None,
                 }),
             )
         }
@@ -698,8 +699,8 @@ async fn send_token(
                 StatusCode::BAD_REQUEST,
                 Json(ApiResponse::<SendTokenResponse> {
                     success: false,
-                    data: None,
                     error: Some(format!("Failed to create transfer instruction: {e}")),
+                    data: None,
                 }),
             )
         }

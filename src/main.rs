@@ -59,7 +59,9 @@ struct CreateTokenRequest {
 #[derive(Serialize)]
 struct AccountMetaResponse {
     pubkey: String,
+    #[serde(rename = "isSigner")]
     is_signer: bool,
+    #[serde(rename = "isWritable")]
     is_writable: bool,
 }
 
@@ -81,7 +83,6 @@ async fn create_token(
                 Json(ApiResponse::<CreateTokenResponse> {
                     success: false,
                     error: Some("Missing required fields".into()),
-                    data: None,
                 }),
             )
         }
@@ -92,7 +93,6 @@ async fn create_token(
             Json(ApiResponse::<CreateTokenResponse> {
                 success: false,
                 error: Some("Missing required fields".into()),
-                data: None,
             }),
         );
     }
@@ -104,7 +104,6 @@ async fn create_token(
                 Json(ApiResponse::<CreateTokenResponse> {
                     success: false,
                     error: Some("Invalid mint pubkey".into()),
-                    data: None,
                 }),
             )
         }
@@ -117,7 +116,6 @@ async fn create_token(
                 Json(ApiResponse::<CreateTokenResponse> {
                     success: false,
                     error: Some("Invalid mint authority pubkey".into()),
-                    data: None,
                 }),
             )
         }
@@ -131,7 +129,6 @@ async fn create_token(
                 Json(ApiResponse::<CreateTokenResponse> {
                     success: false,
                     error: Some(format!("Failed to create instruction: {e}")),
-                    data: None,
                 }),
             )
         }
@@ -184,7 +181,6 @@ async fn mint_token(
                 Json(ApiResponse::<MintTokenResponse> {
                     success: false,
                     error: Some("Missing required fields".into()),
-                    data: None,
                 }),
             )
         }
@@ -195,7 +191,6 @@ async fn mint_token(
             Json(ApiResponse::<MintTokenResponse> {
                 success: false,
                 error: Some("Missing required fields".into()),
-                data: None,
             }),
         );
     }
@@ -205,7 +200,6 @@ async fn mint_token(
             Json(ApiResponse::<MintTokenResponse> {
                 success: false,
                 error: Some("Invalid amount".into()),
-                data: None,
             }),
         );
     }
@@ -217,7 +211,6 @@ async fn mint_token(
                 Json(ApiResponse::<MintTokenResponse> {
                     success: false,
                     error: Some("Invalid mint pubkey".into()),
-                    data: None,
                 }),
             )
         }
@@ -230,7 +223,6 @@ async fn mint_token(
                 Json(ApiResponse::<MintTokenResponse> {
                     success: false,
                     error: Some("Invalid destination pubkey".into()),
-                    data: None,
                 }),
             )
         }
@@ -243,7 +235,6 @@ async fn mint_token(
                 Json(ApiResponse::<MintTokenResponse> {
                     success: false,
                     error: Some("Invalid authority pubkey".into()),
-                    data: None,
                 }),
             )
         }
@@ -257,7 +248,6 @@ async fn mint_token(
                 Json(ApiResponse::<MintTokenResponse> {
                     success: false,
                     error: Some(format!("Failed to create instruction: {e}")),
-                    data: None,
                 }),
             )
         }
@@ -308,7 +298,6 @@ async fn sign_message(
                 Json(ApiResponse::<SignMessageResponse> {
                     success: false,
                     error: Some("Missing required fields".into()),
-                    data: None,
                 }),
             )
         }
@@ -319,7 +308,6 @@ async fn sign_message(
             Json(ApiResponse::<SignMessageResponse> {
                 success: false,
                 error: Some("Missing required fields".into()),
-                data: None,
             }),
         );
     }
@@ -329,7 +317,6 @@ async fn sign_message(
             Json(ApiResponse::<SignMessageResponse> {
                 success: false,
                 error: Some("Message too long".into()),
-                data: None,
             }),
         );
     }
@@ -341,7 +328,6 @@ async fn sign_message(
                 Json(ApiResponse::<SignMessageResponse> {
                     success: false,
                     error: Some("Invalid secret key".into()),
-                    data: None,
                 }),
             )
         }
@@ -354,7 +340,6 @@ async fn sign_message(
                 Json(ApiResponse::<SignMessageResponse> {
                     success: false,
                     error: Some("Invalid secret key".into()),
-                    data: None,
                 }),
             )
         }
@@ -402,7 +387,6 @@ async fn verify_message(
                 Json(ApiResponse::<VerifyMessageResponse> {
                     success: false,
                     error: Some("Missing required fields".into()),
-                    data: None,
                 }),
             )
         }
@@ -413,7 +397,6 @@ async fn verify_message(
             Json(ApiResponse::<VerifyMessageResponse> {
                 success: false,
                 error: Some("Missing required fields".into()),
-                data: None,
             }),
         );
     }
@@ -423,7 +406,6 @@ async fn verify_message(
             Json(ApiResponse::<VerifyMessageResponse> {
                 success: false,
                 error: Some("Message too long".into()),
-                data: None,
             }),
         );
     }
@@ -435,7 +417,6 @@ async fn verify_message(
                 Json(ApiResponse::<VerifyMessageResponse> {
                     success: false,
                     error: Some("Invalid public key".into()),
-                    data: None,
                 }),
             )
         }
@@ -448,7 +429,6 @@ async fn verify_message(
                 Json(ApiResponse::<VerifyMessageResponse> {
                     success: false,
                     error: Some("Invalid public key".into()),
-                    data: None,
                 }),
             )
         }
@@ -461,7 +441,6 @@ async fn verify_message(
                 Json(ApiResponse::<VerifyMessageResponse> {
                     success: false,
                     error: Some("Invalid signature".into()),
-                    data: None,
                 }),
             )
         }
@@ -474,7 +453,6 @@ async fn verify_message(
                 Json(ApiResponse::<VerifyMessageResponse> {
                     success: false,
                     error: Some("Invalid signature".into()),
-                    data: None,
                 }),
             )
         }
@@ -522,7 +500,6 @@ async fn send_sol(
                 Json(ApiResponse::<SendSolResponse> {
                     success: false,
                     error: Some("Missing required fields".into()),
-                    data: None,
                 }),
             )
         }
@@ -533,7 +510,6 @@ async fn send_sol(
             Json(ApiResponse::<SendSolResponse> {
                 success: false,
                 error: Some("Missing required fields".into()),
-                data: None,
             }),
         );
     }
@@ -545,7 +521,6 @@ async fn send_sol(
                 Json(ApiResponse::<SendSolResponse> {
                     success: false,
                     error: Some("Invalid from address".into()),
-                    data: None,
                 }),
             )
         }
@@ -558,7 +533,6 @@ async fn send_sol(
                 Json(ApiResponse::<SendSolResponse> {
                     success: false,
                     error: Some("Invalid to address".into()),
-                    data: None,
                 }),
             )
         }
@@ -569,7 +543,6 @@ async fn send_sol(
             Json(ApiResponse::<SendSolResponse> {
                 success: false,
                 error: Some("Invalid lamports amount".into()),
-                data: None,
             }),
         );
     }
@@ -625,7 +598,6 @@ async fn send_token(
                 Json(ApiResponse::<SendTokenResponse> {
                     success: false,
                     error: Some("Missing required fields".into()),
-                    data: None,
                 }),
             )
         }
@@ -636,7 +608,6 @@ async fn send_token(
             Json(ApiResponse::<SendTokenResponse> {
                 success: false,
                 error: Some("Missing required fields".into()),
-                data: None,
             }),
         );
     }
@@ -646,7 +617,6 @@ async fn send_token(
             Json(ApiResponse::<SendTokenResponse> {
                 success: false,
                 error: Some("Invalid amount".into()),
-                data: None,
             }),
         );
     }
@@ -658,7 +628,6 @@ async fn send_token(
                 Json(ApiResponse::<SendTokenResponse> {
                     success: false,
                     error: Some("Invalid destination address".into()),
-                    data: None,
                 }),
             )
         }
@@ -671,7 +640,6 @@ async fn send_token(
                 Json(ApiResponse::<SendTokenResponse> {
                     success: false,
                     error: Some("Invalid mint address".into()),
-                    data: None,
                 }),
             )
         }
@@ -684,7 +652,6 @@ async fn send_token(
                 Json(ApiResponse::<SendTokenResponse> {
                     success: false,
                     error: Some("Invalid owner address".into()),
-                    data: None,
                 }),
             )
         }
@@ -700,7 +667,6 @@ async fn send_token(
                 Json(ApiResponse::<SendTokenResponse> {
                     success: false,
                     error: Some(format!("Failed to create transfer instruction: {e}")),
-                    data: None,
                 }),
             )
         }

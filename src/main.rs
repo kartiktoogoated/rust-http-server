@@ -47,7 +47,7 @@ async fn generate_keypair() -> impl IntoResponse {
     )
 }
 
-// /token/crate
+// /token/create
 
 #[derive(Deserialize)]
 struct CreateTokenRequest {
@@ -71,7 +71,15 @@ struct CreateTokenResponse {
 }
 
 async fn create_token(Json(body): Json<CreateTokenRequest>) -> impl IntoResponse {
-    // decode + validate
+    if body.mintAuthority.is_empty() || body.mint.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<CreateTokenResponse> {
+                success:false, data:None,
+                error:Some("Missing required fields".into()),
+            }),
+        );
+    }
     let mint_pk = match bs58::decode(&body.mint).into_vec() {
         Ok(b) if b.len()==32 => Pubkey::new(&b),
         _ => return (
@@ -138,6 +146,24 @@ struct MintTokenResponse {
 }
 
 async fn mint_token(Json(body): Json<MintTokenRequest>) -> impl IntoResponse {
+    if body.mint.is_empty() || body.destination.is_empty() || body.authority.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<MintTokenResponse> {
+                success:false, data:None,
+                error:Some("Missing required fields".into()),
+            }),
+        );
+    }
+    if body.amount == 0 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<MintTokenResponse> {
+                success:false, data:None,
+                error:Some("Invalid amount".into()),
+            }),
+        );
+    }
     let mint_pk = match bs58::decode(&body.mint).into_vec() {
         Ok(b) if b.len()==32 => Pubkey::new(&b),
         _ => return (
@@ -195,7 +221,6 @@ async fn mint_token(Json(body): Json<MintTokenRequest>) -> impl IntoResponse {
 
     (StatusCode::OK, Json(ApiResponse { success:true, data:Some(resp), error:None }))
 }
-
 
 // /message/sign
 
@@ -347,6 +372,15 @@ struct SendSolResponse {
 }
 
 async fn send_sol(Json(body): Json<SendSolRequest>) -> impl IntoResponse {
+    if body.from.is_empty() || body.to.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<SendSolResponse> {
+                success:false, data:None,
+                error:Some("Missing required fields".into()),
+            }),
+        );
+    }
     let from_pk = match bs58::decode(&body.from).into_vec() {
         Ok(b) if b.len()==32 => Pubkey::new(&b),
         _ => return (
@@ -401,6 +435,7 @@ struct SendTokenRequest {
 #[derive(Serialize)]
 struct SendTokenAccount {
     pubkey:   String,
+    #[serde(rename = "isSigner")]
     is_signer: bool,
 }
 
@@ -412,6 +447,24 @@ struct SendTokenResponse {
 }
 
 async fn send_token(Json(body): Json<SendTokenRequest>) -> impl IntoResponse {
+    if body.destination.is_empty() || body.mint.is_empty() || body.owner.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<SendTokenResponse> {
+                success:false, data:None,
+                error:Some("Missing required fields".into()),
+            }),
+        );
+    }
+    if body.amount == 0 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<SendTokenResponse> {
+                success:false, data:None,
+                error:Some("Invalid amount".into()),
+            }),
+        );
+    }
     let dest_owner = match bs58::decode(&body.destination).into_vec() {
         Ok(b) if b.len()==32 => Pubkey::new(&b),
         _ => return (
@@ -442,15 +495,6 @@ async fn send_token(Json(body): Json<SendTokenRequest>) -> impl IntoResponse {
             }),
         ),
     };
-    if body.amount == 0 {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<SendTokenResponse> {
-                success:false, data:None,
-                error:Some("Invalid amount".into()),
-            }),
-        );
-    }
 
     let source_ata = get_associated_token_address(&owner_pk, &mint_pk);
     let dest_ata   = get_associated_token_address(&dest_owner, &mint_pk);

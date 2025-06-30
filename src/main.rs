@@ -96,16 +96,6 @@ async fn create_token(
             }),
         );
     }
-    if body.decimals > 18 {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<CreateTokenResponse> {
-                success: false,
-                data: None,
-                error: Some("Decimals must be between 0 and 18".into()),
-            }),
-        );
-    }
     let mint_pk = match bs58::decode(&body.mint).into_vec() {
         Ok(b) if b.len() == 32 => Pubkey::new(&b),
         _ => {
@@ -119,16 +109,6 @@ async fn create_token(
             )
         }
     };
-    if mint_pk == Pubkey::default() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<CreateTokenResponse> {
-                success: false,
-                data: None,
-                error: Some("Invalid mint pubkey".into()),
-            }),
-        );
-    }
     let auth_pk = match bs58::decode(&body.mintAuthority).into_vec() {
         Ok(b) if b.len() == 32 => Pubkey::new(&b),
         _ => {
@@ -142,16 +122,6 @@ async fn create_token(
             )
         }
     };
-    if auth_pk == Pubkey::default() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<CreateTokenResponse> {
-                success: false,
-                data: None,
-                error: Some("Invalid mint authority pubkey".into()),
-            }),
-        );
-    }
     let program_id = spl_token::id();
     let ix = match initialize_mint(&program_id, &mint_pk, &auth_pk, None, body.decimals) {
         Ok(ix) => ix,
@@ -265,16 +235,6 @@ async fn mint_token(
             )
         }
     };
-    if mint_pk == dest_pk {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<MintTokenResponse> {
-                success: false,
-                data: None,
-                error: Some("Mint and destination cannot be the same".into()),
-            }),
-        );
-    }
     let auth_pk = match bs58::decode(&body.authority).into_vec() {
         Ok(b) if b.len() == 32 => Pubkey::new(&b),
         _ => {
@@ -603,16 +563,6 @@ async fn send_sol(
             )
         }
     };
-    if from_pk == to_pk {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<SendSolResponse> {
-                success: false,
-                data: None,
-                error: Some("Sender and recipient cannot be the same".into()),
-            }),
-        );
-    }
     if body.lamports == 0 {
         return (
             StatusCode::BAD_REQUEST,
@@ -739,16 +689,6 @@ async fn send_token(
             )
         }
     };
-    if owner_pk == dest_owner {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiResponse::<SendTokenResponse> {
-                success: false,
-                data: None,
-                error: Some("Owner and destination cannot be the same".into()),
-            }),
-        );
-    }
     let source_ata = get_associated_token_address(&owner_pk, &mint_pk);
     let dest_ata = get_associated_token_address(&dest_owner, &mint_pk);
     let program_id = spl_token::id();
